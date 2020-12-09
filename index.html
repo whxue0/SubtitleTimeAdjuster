@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字幕分析器</title>
+    <link rel="stylesheet" href="./bootstrap4/bootstrap-4.5.0-dist/css/bootstrap.min.css">
+    <script src="./jquery-3.5.1.js"></script>
+    <script src="./bootstrap4/bootstrap-4.5.0-dist/js/bootstrap.bundle.js"></script>
+
+    <style>
+        body{
+            color: white;
+        }
+        .row{
+            padding-top: 15px;
+            padding-bottom: 15px;
+            text-align: center;
+        }
+        .box textarea {
+            box-shadow: 8px 8px 30px white;
+        }
+        #exampleModal{
+            color: black;
+        }
+
+    </style>
+    
+</head>
+<body class="bg-dark">
+    <div class="container">
+        <div class="row">
+            <div class="m-auto">
+                <span class="h2">字幕时间在线调整器</span>
+                <button type = "button" class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#exampleModal">注意事项</button>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-sm-12 col-md-6">
+                
+                <div class="box">
+                    <input type="file" id="file" style="display: none" onchange="readAsText();">
+                    <input class="btn btn-light" type="button" id="fileImport" value="点击导入.srt字幕文件">
+                    <br><br>
+                    <label>原字幕内容</label><br>
+                    <textarea id = "result" class="rounded" style="width: 80%; height: 500px" readonly="readonly"></textarea>
+                </div>
+            </div>
+            <div class="col-sm-12 col-md-6">
+                <div class="box">
+                    <input class="btn btn-light btn-sm"  type="button" id="left_Shift" value="字幕左移">
+                    <input type="text" class="rounded " style="width: 40px;" name="shift_hour" id="shift_hour">小时 
+                    <input type="text" class="rounded" style="width: 40px;" name="shift_minute" id="shift_minute">分钟 
+                    <input type="text" class="rounded" style="width: 40px;" name="shift_second" id="shift_second">秒 
+                    <input type="text" class="rounded" style="width: 40px;" name="shift_msecond" id="shift_msecond">毫秒 
+                    <input class="btn btn-light btn-sm"  type="button" id="subtitleShift" value="字幕右移">
+                    <br><br>
+                    <label>更新后字幕内容&nbsp;</label>
+                    <input class="btn btn-light btn-sm"  type="button" id="updateIndex" value="索引更新">&nbsp;
+                    <input class="btn btn-light btn-sm"  type="button" id="allSelect" value="全选">
+                    <br>
+                    <textarea id = "modify"  class="rounded" style="width: 80%; height: 500px"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="exampleModalLabel">Welcome</h5>
+                </div>
+                <div class="modal-body">
+                    <p>欢迎使用字幕时间调整器！</p>
+                    <p>使用方法：导入字幕文件，输入需要整体左移或右移的时间，点击相应左移或者右移按钮即可。</p>
+                    <p>如果需要获得新字幕文件的话可以点击全选再右键复制所有文本放到一个新的文件即可。</p>
+                    <p>需要注意时间的取值范围如下：</p>
+                    <p>毫秒：0~999 或 为空</p>
+                    <p>秒：0~59 或 为空</p>
+                    <p>分钟：0~59 或 为空</p>
+                    <p>小时：0~999 或 为空</p>
+                    <a href="https://github.com/whxue0/SubtitleTimeAdjuster">项目Github地址</a>
+                    <p style="float: right;">作者：xwh 2020/12/9</p>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+        </div>
+    </div>
+
+
+    
+
+    <script>
+
+        class Time {
+            constructor(hour, minute, second, msecond) {
+                this.hour = hour;
+                this.minute = minute;
+                this.second = second;
+                this.msecond = msecond;
+            }
+            toString() {
+                return this.hour + ":" + this.minute + ":" + this.second + "," + this.msecond;
+            }
+        }
+
+        class OneSubtitle{
+            constructor(index, begin, end, content) {
+                this.index = index;
+                this.begin = begin;
+                this.end = end;
+                this.content = content;
+            }
+        }
+
+        let i = 0;   //当前解析到的字符索引
+        let finishFlag = false;
+
+        let isDigit = (ch) => {
+            
+            return ch === "0" ||
+                    ch === "1" ||
+                    ch === "2" ||
+                    ch === "3" ||
+                    ch === "4" ||
+                    ch === "5" ||
+                    ch === "6" ||
+                    ch === "7" ||
+                    ch === "8" ||
+                    ch === "9";
+        }
+
+        let isLineBreak = (ch) => {
+            return ch.charCodeAt() === 13;
+        }
+
+        let isDigitPlus = (ch) => {
+            return ch === "0" ||
+                    ch === "1" ||
+                    ch === "2" ||
+                    ch === "3" ||
+                    ch === "4" ||
+                    ch === "5";
+        }
+
+        let isColon = (ch) => {
+            return ch === ":"
+        }
+
+        let isComma = (ch) => {
+            return ch === ","
+        }
+
+        let isSpace = (ch) => {
+            return ch === " "
+        }
+
+        let isDash = (ch) => {
+            return ch === "-"
+        }
+
+        let isBigger = (ch) => {
+            return ch === ">"
+        }
+
+        let getIndex = () => {
+            let ch = srtText.charAt(i);
+            let index_str = "";
+            // 直到i不是数字
+            while(isDigit(ch)) {
+                index_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }
+            if(isLineBreak(ch)) {
+                i++;
+                i++;
+                let index = Number.parseInt(index_str);
+                return index;
+            } else {
+                //如果出现了非数字字符且该非数字字符不是换行符的话，抛出错误
+                throw new Error ( "getIndex()---错误");
+            }
+        }
+
+        let getBegin = () => {
+
+            let hour_str = "";
+            let minute_str = "";
+            let second_str = "";
+            let msecond_str = "";
+
+            let hour;
+            let minute;
+            let second;
+            let msecond;
+
+            let ch = srtText.charAt(i);
+            // 获取hour
+            while(isDigit(ch)) {
+                hour_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }
+            if(isColon(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+                //hour = Number.parseInt(hour_str);
+            } else {
+                throw new Error ( "getBegin()---hour---错误" );
+            }
+
+            // 获取minute
+            if(isDigitPlus(ch)){
+                minute_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getBegin()---minute-1---错误" );
+            }
+            if(isDigit(ch)){
+                minute_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getBegin()---minute-2---错误" );
+            }
+            if(isColon(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+                //minute = Number.parseInt(minute_str);
+            } else {
+                throw new Error ( "getBegin()---minute---错误" );
+            }
+
+            // 获取second
+            if(isDigitPlus(ch)){
+                second_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getBegin()---second-1---错误" );
+            }
+            if(isDigit(ch)){
+                second_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getBegin()---second-2---错误" );
+            }
+            if(isComma(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+                //second = Number.parseInt(second_str);
+            } else {
+                throw new Error ( "getBegin()---second---错误" );
+            }
+
+            //获取msecond
+            for(let k = 0; k < 3; k++) {
+                if(isDigit(ch)){
+                    msecond_str += ch;
+                    i++;
+                    ch = srtText.charAt(i);
+                }else{
+                    throw new Error ( "getBegin()---msecond---错误" );
+                }
+            }
+            if(isSpace(ch)) {
+                i++;
+                //ch = srtText.charAt(i);
+                //msecond = Number.parseInt(msecond_str);
+            }else {
+                throw new Error ("getBegin()---msecond---错误")
+            }
+
+            let begin = new Time(hour_str,minute_str,second_str,msecond_str);
+
+            return begin;
+        }
+
+        let getEnd = () => {
+
+            let hour_str = "";
+            let minute_str = "";
+            let second_str = "";
+            let msecond_str = "";
+
+            let hour;
+            let minute;
+            let second;
+            let msecond;
+
+            let ch = srtText.charAt(i);
+
+            if(isDash(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+            }
+            if(isDash(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+            }
+            if(isBigger(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+            }
+            if(isSpace(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+            }
+
+            // 获取hour
+            while(isDigit(ch)) {
+                hour_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }
+            if(isColon(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+                //hour = Number.parseInt(hour_str);
+            } else {
+                throw new Error ( "getEnd()---hour---错误" );
+            }
+
+            // 获取minute
+            if(isDigitPlus(ch)){
+                minute_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getEnd()---minute-1---错误" );
+            }
+            if(isDigit(ch)){
+                minute_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getEnd()---minute-2---错误" );
+            }
+            if(isColon(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+                //minute = Number.parseInt(minute_str);
+            } else {
+                throw new Error ( "getEnd()---minute---错误" );
+            }
+
+            // 获取second
+            if(isDigitPlus(ch)){
+                second_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getEnd()---second-1---错误" );
+            }
+            if(isDigit(ch)){
+                second_str += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }else{
+                throw new Error ( "getEnd()---second-2---错误" );
+            }
+            if(isComma(ch)) {
+                i++;
+                ch = srtText.charAt(i);
+                //second = Number.parseInt(second_str);
+            } else {
+                throw new Error ( "getEnd()---second---错误" );
+            }
+
+            //获取msecond
+            for(let k = 0; k < 3; k++) {
+                if(isDigit(ch)){
+                    msecond_str += ch;
+                    i++;
+                    ch = srtText.charAt(i);
+                }else{
+                    throw new Error ( "getEnd()---msecond---错误" );
+                }
+            }
+            if(isLineBreak(ch)) {
+                i++;
+                i++;
+                //ch = srtText.charAt(i);
+                //msecond = Number.parseInt(msecond_str);
+            }else {
+                throw new Error ("getEnd()---msecond---错误")
+            }
+
+            let end = new Time(hour_str,minute_str,second_str,msecond_str);
+
+            return end;
+        }
+
+        //文本解析
+        let getContent = () => {
+            let content = "";
+            
+            let ch = srtText.charAt(i);
+            //读取除换行符之外的所有字符
+            while(!isLineBreak(ch)) {
+                content += ch;
+                i++;
+                ch = srtText.charAt(i);
+            }
+            //读入换行符
+            if(isLineBreak(ch)) {
+                i++;
+                i++;
+                ch = srtText.charAt(i);
+            }
+
+            //如果下一个仍是换行符，则该段字幕结束
+            if(isLineBreak(ch)) {
+                i++;
+                i++;
+                ch = srtText.charAt(i);
+                //如果下一个依然是换行符，说明到达字幕结尾
+                if(isNaN(ch.charCodeAt())) {
+                    finishFlag = true;
+                }
+                return content;
+            }else{
+                //说明字幕有多行
+                //let finish_content = false; 
+                let line_count = 1;
+                while(true) {
+                    line_count ++;
+                    content += "\r\n";
+                    while(!isLineBreak(ch)) {
+                        content += ch;
+                        i++;
+                        ch = srtText.charAt(i);
+                    }
+                    if(isLineBreak(ch)) {
+                        i++;
+                        i++;
+                        ch = srtText.charAt(i);
+                    }
+                    if(isLineBreak(ch)) {
+                        //finish_content = true;
+                        i++;
+                        i++;
+                        ch = srtText.charAt(i);
+                        if(isNaN(ch.charCodeAt())) {
+                            finishFlag = true;
+                        }
+                        return content;
+                    }else{
+                        if(line_count > 6){
+                            throw new Error ("Error---content");
+                        }
+                    }
+                }
+            }
+        }
+
+        let total_Sub = [];  //字幕对象数组
+
+        let go = () => {
+            while(!finishFlag) {
+                let index = getIndex();
+                let begin = getBegin();
+                let end = getEnd();
+                let content = getContent();
+                let temp = new OneSubtitle(index, begin, end, content);
+                total_Sub.push(temp);
+            }
+        }
+
+
+
+        //点击导入按钮,使files触发点击事件,然后完成读取文件的操作
+        $("#fileImport").click(function() {
+            $("#file").click();
+        })
+        $('#subtitleShift').click(function() {
+
+            if(total_Sub.length === 0) return;
+
+            let shift_msecond = Number.parseInt($('#shift_msecond').val());
+            let shift_second = Number.parseInt($('#shift_second').val());
+            let shift_minute = Number.parseInt($('#shift_minute').val());
+            let shift_hour = Number.parseInt($('#shift_hour').val());
+
+            if(isNaN(shift_msecond)) shift_msecond = 0;
+            if(isNaN(shift_second)) shift_second = 0;
+            if(isNaN(shift_minute)) shift_minute = 0;
+            if(isNaN(shift_hour)) shift_hour = 0;
+
+            
+            if(shift_msecond < 0 || shift_msecond >= 1000 ||
+                shift_second < 0 || shift_second >= 60 ||
+                shift_minute < 0 || shift_minute >= 60 ||
+                shift_hour < 0 || shift_hour >= 1000){
+
+                alert("更新失败，请查看注意事项！");
+                return;
+            }
+
+
+            for(let index = 0 ; index < total_Sub.length; index++) {
+                let item = total_Sub[index];
+
+                //毫秒
+                let begin_msecond = Number.parseInt(item.begin.msecond) + shift_msecond;
+                let end_msecond = Number.parseInt(item.end.msecond) + shift_msecond;
+
+                let begin_second_flag = 0;
+                let end_second_flag = 0;
+
+                if(begin_msecond >= 1000) {
+                    begin_msecond -= 1000;
+                    begin_second_flag = 1;
+                }
+                if(end_msecond >= 1000) {
+                    end_msecond -= 1000;
+                    end_second_flag = 1;
+                }
+
+                let begin_msecond_str = begin_msecond.toString();
+                while(begin_msecond_str.length < 3){
+                    begin_msecond_str = "0" + begin_msecond_str;
+                }
+                item.begin.msecond = begin_msecond_str;
+
+                let end_msecond_str = end_msecond.toString();
+                while(end_msecond_str.length < 3){
+                    end_msecond_str = "0" + end_msecond_str;
+                }
+                item.end.msecond = end_msecond_str;
+
+                //秒
+                let begin_second = Number.parseInt(item.begin.second) + shift_second + begin_second_flag;
+                let end_second = Number.parseInt(item.end.second) + shift_second + end_second_flag;
+
+                let begin_minute_flag = 0;
+                let end_minute_flag = 0;
+
+                if(begin_second >= 60) {
+                    begin_second -= 60;
+                    begin_minute_flag = 1;
+                }
+                if(end_second >= 60) {
+                    end_second -= 60;
+                    end_minute_flag = 1;
+                }
+
+                let begin_second_str = begin_second.toString();
+                while(begin_second_str.length < 2){
+                    begin_second_str = "0" + begin_second_str;
+                }
+                item.begin.second = begin_second_str;
+
+                let end_second_str = end_second.toString();
+                while(end_second_str.length < 2){
+                    end_second_str = "0" + end_second_str;
+                }
+                item.end.second = end_second_str;
+
+                //分
+                let begin_minute = Number.parseInt(item.begin.minute) + shift_minute + begin_minute_flag;
+                let end_minute = Number.parseInt(item.end.minute) + shift_minute + end_minute_flag;
+
+                let begin_hour_flag = 0;
+                let end_hour_flag = 0;
+
+                if(begin_minute >= 60) {
+                    begin_minute -= 60;
+                    begin_hour_flag = 1;
+                }
+                if(end_minute >= 60) {
+                    end_minute -= 60;
+                    end_hour_flag = 1;
+                }
+
+                let begin_minute_str = begin_minute.toString();
+                while(begin_minute_str.length < 2){
+                    begin_minute_str = "0" + begin_minute_str;
+                }
+                item.begin.minute = begin_minute_str;
+
+                let end_minute_str = end_minute.toString();
+                while(end_minute_str.length < 2){
+                    end_minute_str = "0" + end_minute_str;
+                }
+                item.end.minute = end_minute_str;
+
+
+
+                let begin_hour = Number.parseInt(item.begin.hour) + shift_hour + begin_hour_flag;
+                let end_hour = Number.parseInt(item.end.hour) + shift_hour + end_hour_flag;
+
+                let begin_hour_str = begin_hour.toString();
+                while(begin_hour_str.length < 2){
+                    begin_hour_str = "0" + begin_hour_str;
+                }
+                item.begin.hour = begin_hour_str;
+
+                let end_hour_str = end_hour.toString();
+                while(end_hour_str.length < 2){
+                    end_hour_str = "0" + end_hour_str;
+                }
+                item.end.hour = end_hour_str;
+                
+            }
+            //console.log(shift_msecond);
+            let modify = document.getElementById("modify");
+            let str = "";
+            for(let index = 0 ; index<total_Sub.length; index++) {
+                let item = total_Sub[index];
+                str = str + item.index + "\r\n" + item.begin.toString() + " --> " + item.end.toString() + "\r\n" + item.content + "\r\n\r\n";
+            }
+            $('#modify').text(str);
+        })
+
+
+        $('#left_Shift').click(function() {
+
+            if(total_Sub.length === 0) return;
+
+            let new_head = -1;
+            let shift_msecond = Number.parseInt($('#shift_msecond').val());
+            let shift_second = Number.parseInt($('#shift_second').val());
+            let shift_minute = Number.parseInt($('#shift_minute').val());
+            let shift_hour = Number.parseInt($('#shift_hour').val());
+            
+
+            if(isNaN(shift_msecond)) shift_msecond = 0;
+            if(isNaN(shift_second)) shift_second = 0;
+            if(isNaN(shift_minute)) shift_minute = 0;
+            if(isNaN(shift_hour)) shift_hour = 0;
+
+            if(shift_msecond < 0 || shift_msecond >= 1000 ||
+                shift_second < 0 || shift_second >= 60 ||
+                shift_minute < 0 || shift_minute >= 60 ||
+                shift_hour < 0 || shift_hour >= 1000){
+
+                alert("更新失败，请查看注意事项！");
+                return;
+            }
+
+            for(let index = 0 ; index < total_Sub.length; index++) {
+                let item = total_Sub[index];
+
+                //毫秒
+                let begin_msecond = Number.parseInt(item.begin.msecond) - shift_msecond;
+                let end_msecond = Number.parseInt(item.end.msecond) - shift_msecond;
+
+                let begin_second_flag = 0;
+                let end_second_flag = 0;
+
+                if(begin_msecond < 0) {
+                    begin_msecond += 1000;
+                    begin_second_flag = 1;
+                }
+                if(end_msecond < 0) {
+                    end_msecond += 1000;
+                    end_second_flag = 1;
+                }
+
+                let begin_msecond_str = begin_msecond.toString();
+                while(begin_msecond_str.length < 3){
+                    begin_msecond_str = "0" + begin_msecond_str;
+                }
+                item.begin.msecond = begin_msecond_str;
+
+                let end_msecond_str = end_msecond.toString();
+                while(end_msecond_str.length < 3){
+                    end_msecond_str = "0" + end_msecond_str;
+                }
+                item.end.msecond = end_msecond_str;
+
+                //秒
+                let begin_second = Number.parseInt(item.begin.second) - shift_second - begin_second_flag;
+                let end_second = Number.parseInt(item.end.second) - shift_second - end_second_flag;
+
+                let begin_minute_flag = 0;
+                let end_minute_flag = 0;
+
+                if(begin_second < 0) {
+                    begin_second += 60;
+                    begin_minute_flag = 1;
+                }
+                if(end_second < 0) {
+                    end_second += 60;
+                    end_minute_flag = 1;
+                }
+
+                let begin_second_str = begin_second.toString();
+                while(begin_second_str.length < 2){
+                    begin_second_str = "0" + begin_second_str;
+                }
+                item.begin.second = begin_second_str;
+
+                let end_second_str = end_second.toString();
+                while(end_second_str.length < 2){
+                    end_second_str = "0" + end_second_str;
+                }
+                item.end.second = end_second_str;
+
+                //分
+                let begin_minute = Number.parseInt(item.begin.minute) - shift_minute - begin_minute_flag;
+                let end_minute = Number.parseInt(item.end.minute) - shift_minute - end_minute_flag;
+
+                let begin_hour_flag = 0;
+                let end_hour_flag = 0;
+
+                if(begin_minute < 0) {
+                    begin_minute += 60;
+                    begin_hour_flag = 1;
+                }
+                if(end_minute < 0) {
+                    end_minute += 60;
+                    end_hour_flag = 1;
+                }
+
+                let begin_minute_str = begin_minute.toString();
+                while(begin_minute_str.length < 2){
+                    begin_minute_str = "0" + begin_minute_str;
+                }
+                item.begin.minute = begin_minute_str;
+
+                let end_minute_str = end_minute.toString();
+                while(end_minute_str.length < 2){
+                    end_minute_str = "0" + end_minute_str;
+                }
+                item.end.minute = end_minute_str;
+
+
+
+                let begin_hour = Number.parseInt(item.begin.hour) - shift_hour - begin_hour_flag;
+                let end_hour = Number.parseInt(item.end.hour) - shift_hour - end_hour_flag;
+
+                if(begin_hour < 0) {
+                    new_head = index;
+                }else{
+                    let begin_hour_str = begin_hour.toString();
+                    while(begin_hour_str.length < 2){
+                        begin_hour_str = "0" + begin_hour_str;
+                    }
+                    item.begin.hour = begin_hour_str;
+
+                    let end_hour_str = end_hour.toString();
+                    while(end_hour_str.length < 2){
+                        end_hour_str = "0" + end_hour_str;
+                    }
+                    item.end.hour = end_hour_str;
+                }
+            }
+            //console.log(shift_msecond);
+
+            for(let index = 0; index <= new_head; index++) {
+                total_Sub.shift();
+            }
+
+            let modify = document.getElementById("modify");
+            let str = "";
+            for(let index = 0 ; index<total_Sub.length; index++) {
+                let item = total_Sub[index];
+                str = str + item.index + "\r\n" + item.begin.toString() + " --> " + item.end.toString() + "\r\n" + item.content + "\r\n\r\n";
+            }
+            $('#modify').text(str);
+        })
+
+        $('#updateIndex').click(function() {
+            if(total_Sub.length === 0) return;
+            for(let index = 0; index<total_Sub.length; index++) {
+                let item = total_Sub[index];
+                item.index = index;
+            }
+            let str = "";
+            for(let index = 0 ; index<total_Sub.length; index++) {
+                let item = total_Sub[index];
+                str = str + item.index + "\r\n" + item.begin.toString() + " --> " + item.end.toString() + "\r\n" + item.content + "\r\n\r\n";
+            }
+            $('#modify').text(str);
+
+        })
+
+        $('#allSelect').click(function() {
+            $('#modify').focus();
+            $('#modify').select();
+        })
+
+        let srtText = "";
+
+        let result=document.getElementById("result");  
+        let file=document.getElementById("file"); 
+
+        let readAsText = () => {  
+            var file = document.getElementById("file").files[0];  
+            var reader = new FileReader();  
+            //将文件以文本形式读入页面  
+            reader.readAsText(file);  
+            reader.onload=function(f){  
+                var result=document.getElementById("result");  
+                srtText = this.result;
+                $('#result').text(srtText);
+                $('#modify').text(srtText);
+                //导入文件前先清空字幕数组
+                total_Sub = [];
+                finishFlag = false;
+                go();
+            }
+        }
+
+
+
+    </script>
+</body>
+</html>
