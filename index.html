@@ -43,7 +43,7 @@
                     <input class="btn btn-light" type="button" id="fileImport" value="点击导入.srt字幕文件">
                     <br><br>
                     <label>原字幕内容</label><br>
-                    <textarea id = "result" class="rounded" style="width: 80%; height: 500px" readonly="readonly"></textarea>
+                    <textarea id = "result" class="rounded" style="width: 80%; height: 480px" readonly="readonly"></textarea>
                 </div>
             </div>
             <div class="col-sm-12 col-md-6">
@@ -59,7 +59,7 @@
                     <input class="btn btn-light btn-sm"  type="button" id="updateIndex" value="索引更新">&nbsp;
                     <input class="btn btn-light btn-sm"  type="button" id="allSelect" value="全选">
                     <br>
-                    <textarea id = "modify"  class="rounded" style="width: 80%; height: 500px"></textarea>
+                    <textarea id = "modify"  class="rounded" style="width: 80%; height: 480px"></textarea>
                 </div>
             </div>
         </div>
@@ -88,7 +88,13 @@
               </div>
             </div>
         </div>
+
+        <footer style="text-align: center;">
+            <a href="http://www.beian.gov.cn/" target="_blank">粤ICP备20072027号-2</a>
+        </footer>
     </div>
+
+
 
 
     
@@ -806,6 +812,7 @@
                 //导入文件前先清空字幕数组
                 total_Sub = [];
                 finishFlag = false;
+                i = 0;
                 go();
             }
         }
